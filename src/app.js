@@ -12,9 +12,21 @@ import classSessionRoutes from "./routes/classSession.routes.js";
 
 const app = express();
 
+const allowedOrigins = [
+    process.env.FRONTEND_URL,
+    "http://localhost:3000"
+].filter(Boolean);
+
 app.use(
     cors({
-        origin: true,
+        origin(origin, callback) {
+            // Requests without an Origin header (for example health checks) are allowed.
+            if (!origin || allowedOrigins.includes(origin)) {
+                return callback(null, true);
+            }
+
+            return callback(new Error("Not allowed by CORS"));
+        },
         credentials: true,
 
         methods: [
@@ -44,7 +56,7 @@ app.use(
 
 app.use(cookieParser());
 
-app.get("/healthz", (req, res) => {
+app.get("/health", (req, res) => {
     res.status(200).json({
         success: true,
         message: "🚀 Welcome to YogaConnect Backend API",
