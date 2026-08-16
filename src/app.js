@@ -60,9 +60,8 @@ app.get("/health", (req, res) => {
     res.status(200).json({
         success: true,
         message: "🚀 Welcome to YogaConnect Backend API",
-        version: "v1.0.0",
         status: "Server is running successfully ✅",
-        api: "/api/v1/users"
+        api: "/api/v1"
     });
 });
 
