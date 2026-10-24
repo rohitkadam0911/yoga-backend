@@ -28,6 +28,16 @@ export const createClass = async (req, res) => {
 
             const { instructorId } = req.body;
 
+            if (
+                !instructorId ||
+                !mongoose.Types.ObjectId.isValid(instructorId)
+            ) {
+                return res.status(400).json({
+                    success: false,
+                    message: "Valid instructor ID is required"
+                });
+            }
+
             instructor = await Instructor.findOne({
                 _id: instructorId,
                 status: true
@@ -116,7 +126,10 @@ export const createClass = async (req, res) => {
 
 export const getAllClasses = async (req, res) => {
     try {
-        const classes = await Class.find({ status: true })
+
+        const classes = await Class.find({
+            status: true
+        })
             .populate({
                 path: "instructorId",
                 populate: {
@@ -124,14 +137,58 @@ export const getAllClasses = async (req, res) => {
                     select: "name email phone profileImage"
                 }
             })
-            .sort({ scheduleDate: 1 });
+            .sort({
+                scheduleDate: 1
+            });
 
         return res.status(200).json({
             success: true,
             count: classes.length,
             data: classes
         });
+
     } catch (error) {
+
+        return res.status(500).json({
+            success: false,
+            message: error.message
+        });
+    }
+};
+
+export const getMyClasses = async (req, res) => {
+    try {
+        const userId = req.user.id;
+
+        const instructor = await Instructor.findOne({
+            userId,
+            status: true
+        });
+
+        if (!instructor) {
+            return res.status(404).json({
+                success: false,
+                message: "Instructor profile not found"
+            });
+        }
+
+        const classes = await Class.find({
+            instructorId: instructor._id,
+            status: true
+        }).sort({
+            scheduleDate: 1,
+            startTime: 1
+        });
+
+        return res.status(200).json({
+            success: true,
+            count: classes.length,
+            data: classes
+        });
+
+    } catch (error) {
+        console.error("Get My Classes Error:", error);
+
         return res.status(500).json({
             success: false,
             message: error.message
@@ -141,6 +198,7 @@ export const getAllClasses = async (req, res) => {
 
 export const getClassById = async (req, res) => {
     try {
+
         const { id } = req.params;
 
         if (!mongoose.Types.ObjectId.isValid(id)) {
@@ -172,6 +230,7 @@ export const getClassById = async (req, res) => {
         });
 
     } catch (error) {
+
         return res.status(500).json({
             success: false,
             message: error.message
@@ -200,7 +259,6 @@ export const updateClass = async (req, res) => {
         }
 
         if (req.user.role === "instructor") {
-
             const instructor = await Instructor.findOne({
                 userId: req.user.id,
                 status: true
@@ -213,7 +271,10 @@ export const updateClass = async (req, res) => {
                 });
             }
 
-            if (yogaClass.instructorId.toString() !== instructor._id.toString()) {
+            if (
+                yogaClass.instructorId.toString() !==
+                instructor._id.toString()
+            ) {
                 return res.status(403).json({
                     success: false,
                     message: "You can update only your own classes"
@@ -230,7 +291,9 @@ export const updateClass = async (req, res) => {
             price,
             capacity,
             mode,
-            scheduleDate
+            scheduleDate,
+            startTime,
+            endTime
         } = req.body;
 
         yogaClass.title = title ?? yogaClass.title;
@@ -245,6 +308,19 @@ export const updateClass = async (req, res) => {
         yogaClass.startTime = startTime ?? yogaClass.startTime;
         yogaClass.endTime = endTime ?? yogaClass.endTime;
 
+        // Upload new thumbnail
+        if (req.file) {
+            const result = await uploadToCloudinary(
+                req.file.buffer,
+                "YogaConnect/Class"
+            );
+
+            yogaClass.thumbnail = {
+                public_id: result.public_id,
+                url: result.secure_url
+            };
+        }
+
         await yogaClass.save();
 
         return res.status(200).json({
@@ -254,17 +330,16 @@ export const updateClass = async (req, res) => {
         });
 
     } catch (error) {
-
         return res.status(500).json({
             success: false,
             message: error.message
         });
-
     }
 };
 
 export const deleteClass = async (req, res) => {
     try {
+
         const { id } = req.params;
 
         if (!mongoose.Types.ObjectId.isValid(id)) {
@@ -274,19 +349,21 @@ export const deleteClass = async (req, res) => {
             });
         }
 
-        const yogaClass = await Class.findById(id);
+        const yogaClass = await Class.findOne({
+            _id: id,
+            status: true
+        });
 
-        if (!yogaClass || !yogaClass.status) {
+        if (!yogaClass) {
             return res.status(404).json({
                 success: false,
                 message: "Class not found"
             });
         }
 
-        let instructor;
-
         if (req.user.role === "instructor") {
-            instructor = await Instructor.findOne({
+
+            const instructor = await Instructor.findOne({
                 userId: req.user.id,
                 status: true
             });
@@ -298,7 +375,10 @@ export const deleteClass = async (req, res) => {
                 });
             }
 
-            if (yogaClass.instructorId.toString() !== instructor._id.toString()) {
+            if (
+                yogaClass.instructorId.toString() !==
+                instructor._id.toString()
+            ) {
                 return res.status(403).json({
                     success: false,
                     message: "You can delete only your own classes"
@@ -307,16 +387,20 @@ export const deleteClass = async (req, res) => {
         }
 
         yogaClass.status = false;
+
         await yogaClass.save();
 
         return res.status(200).json({
             success: true,
             message: "Class deleted successfully"
         });
+
     } catch (error) {
+
         return res.status(500).json({
             success: false,
             message: error.message
         });
     }
 };
+

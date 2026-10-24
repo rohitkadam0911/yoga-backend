@@ -1,5 +1,9 @@
 import Instructor from "../models/instructor.model.js";
 import User from "../models/user.model.js";
+import Class from "../models/class.model.js";
+import ClassSession from "../models/classSession.model.js";
+import Booking from "../models/booking.model.js";
+import Payment from "../models/payment.model.js";
 import mongoose from "mongoose";
 
 export const createInstructorProfile = async (req, res) => {
@@ -28,7 +32,7 @@ export const createInstructorProfile = async (req, res) => {
             return res.status(409).json({
                 success: false,
                 message: "Instructor profile is already exists"
-            })
+            });
         }
 
         const {
@@ -37,7 +41,7 @@ export const createInstructorProfile = async (req, res) => {
             experience,
             expertise,
             languages,
-            fees,
+            fees
         } = req.body;
 
         const instructor = await Instructor.create({
@@ -54,7 +58,8 @@ export const createInstructorProfile = async (req, res) => {
             success: true,
             message: "Instructor profile created successfully",
             data: instructor
-        })
+        });
+
     } catch (error) {
         return res.status(500).json({
             success: false,
@@ -92,6 +97,13 @@ export const getInstructorById = async (req, res) => {
 
         const { id } = req.params;
 
+        if (!mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({
+                success: false,
+                message: "Invalid instructor id"
+            });
+        }
+
         const instructor = await Instructor.findById(id)
             .populate({
                 path: "userId",
@@ -110,12 +122,6 @@ export const getInstructorById = async (req, res) => {
             data: instructor
         });
 
-        if (!mongoose.Types.ObjectId.isValid(id)) {
-            return res.status(400).json({
-                success: false,
-                message: "Invalid instructor id"
-            });
-        }
     } catch (error) {
         return res.status(500).json({
             success: false,
@@ -128,7 +134,10 @@ export const updateProfileInstructor = async (req, res) => {
     try {
         const userId = req.user.id;
 
-        const instructor = await Instructor.findOne({ userId });
+        const instructor = await Instructor.findOne({
+            userId,
+            status: true
+        });
 
         if (!instructor) {
             return res.status(404).json({
@@ -161,7 +170,8 @@ export const updateProfileInstructor = async (req, res) => {
             success: true,
             message: "Instructor profile updated successfully",
             data: instructor
-        })
+        });
+
     } catch (error) {
         return res.status(500).json({
             success: false,
@@ -174,9 +184,12 @@ export const deleteInstructorProfile = async (req, res) => {
     try {
         const userId = req.user.id;
 
-        const instructor = await Instructor.findOne({userId});
+        const instructor = await Instructor.findOne({
+            userId,
+            status: true
+        });
 
-        if(!instructor) {
+        if (!instructor) {
             return res.status(404).json({
                 success: false,
                 message: "Instructor profile not found"
@@ -184,12 +197,14 @@ export const deleteInstructorProfile = async (req, res) => {
         }
 
         instructor.status = false;
+
         await instructor.save();
 
         return res.status(200).json({
             success: true,
             message: "Instructor profile deleted successfully."
-        })
+        });
+
     } catch (error) {
         return res.status(500).json({
             success: false,
@@ -198,3 +213,184 @@ export const deleteInstructorProfile = async (req, res) => {
     }
 };
 
+export const getInstructorDashboard = async (req, res) => {
+    try {
+        const userId = req.user.id;
+
+        const instructor = await Instructor.findOne({
+            userId,
+            status: true
+        });
+
+        if (!instructor) {
+            return res.status(404).json({
+                success: false,
+                message: "Instructor profile not found"
+            });
+        }
+
+        const instructorId = instructor._id;
+
+        const totalClasses = await Class.countDocuments({
+            instructorId,
+            status: true
+        });
+
+        const now = new Date();
+
+        const startOfToday = new Date(now);
+        startOfToday.setHours(0, 0, 0, 0);
+
+        const endOfToday = new Date(now);
+        endOfToday.setHours(23, 59, 59, 999);
+
+        const upcomingSessions = await ClassSession.find({
+            instructorId,
+            status: true,
+            date: {
+                $gte: now
+            }
+        })
+            .populate({
+                path: "classId",
+                select: "title category level price mode thumbnail"
+            })
+            .sort({
+                date: 1,
+                startTime: 1
+            });
+
+        const todaySessions = await ClassSession.find({
+            instructorId,
+            status: true,
+            date: {
+                $gte: startOfToday,
+                $lte: endOfToday
+            }
+        })
+            .populate({
+                path: "classId",
+                select: "title category level price mode thumbnail"
+            })
+            .sort({
+                startTime: 1
+            });
+
+        const totalBookings = await Booking.countDocuments({
+            instructorId,
+            status: true
+        });
+
+        const instructorBookings = await Booking.find({
+            instructorId,
+            status: true
+        })
+            .select("userId classId sessionId instructorId totalAmount paymentStatus bookingStatus createdAt");
+
+        const studentIds = new Set();
+
+        instructorBookings.forEach((booking) => {
+            if (booking.userId) {
+                studentIds.add(booking.userId.toString());
+            }
+        });
+
+        const totalStudents = studentIds.size;
+
+        const bookingIds = instructorBookings.map((booking) => booking._id);
+
+        let totalEarnings = 0;
+
+        if (bookingIds.length > 0) {
+            const paidPayments = await Payment.find({
+                bookingId: {
+                    $in: bookingIds
+                },
+                paymentStatus: "Paid",
+                status: true
+            });
+
+            totalEarnings = paidPayments.reduce((total, payment) => total + payment.amount, 0);
+        }
+
+        const recentBookings = await Booking.find({
+            instructorId,
+            status: true
+        })
+            .populate({
+                path: "userId",
+                select: "name email phone profileImage"
+            })
+            .populate({
+                path: "classId",
+                select: "title category price"
+            })
+            .populate({
+                path: "sessionId",
+                select: "date startTime endTime"
+            })
+            .sort({
+                createdAt: -1
+            })
+            .limit(5);
+
+        const upcomingSessionsCount = upcomingSessions.length;
+
+        return res.status(200).json({
+            success: true,
+            data: {
+                totalClasses,
+                upcomingSessions: upcomingSessionsCount,
+                totalBookings,
+                totalStudents,
+                totalEarnings,
+                todaySessions,
+                upcomingSessions,
+                recentBookings
+            }
+        });
+
+    } catch (error) {
+        console.error("Get Instructor Dashboard Error:", error);
+
+        return res.status(500).json({
+            success: false,
+            message: error.message
+        });
+    }
+};
+
+export const getMyInstructorProfile = async (req, res) => {
+    try {
+
+        const userId = req.user.id;
+
+        const instructor = await Instructor.findOne({
+            userId,
+            status: true
+        }).populate({
+            path: "userId",
+            select: "name email contact profileImage"
+        });
+
+        if (!instructor) {
+            return res.status(404).json({
+                success: false,
+                message: "Instructor profile not found"
+            });
+        }
+
+        return res.status(200).json({
+            success: true,
+            data: instructor
+        });
+
+    } catch (error) {
+
+        return res.status(500).json({
+            success: false,
+            message: error.message
+        });
+
+    }
+};
