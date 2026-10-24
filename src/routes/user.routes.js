@@ -1,8 +1,7 @@
 import express from 'express';
 import { changePassword, deleteAccount, getProfile, login, logout, resetPassword, sendOtp, signup, updateProfile, verifyOtp } from "../controllers/user.controller.js"
 import { auth } from '../middleware/auth.middleware.js';
-import { isAdmin, isInstructor, isUser} from '../middleware/role.middleware.js'
-import { signupValidator, loginValidator, sendOtpValidator, verifyOtpValidator, resetPasswordValidator, changePasswordValidator, updateProfileValidator } from "../validators/user.validators.js"
+import { signupValidator, loginValidator, sendOtpValidator, verifyOtpValidator, resetPasswordValidator, changePasswordValidator } from "../validators/user.validators.js"
 import upload from "../middleware/upload.middleware.js";
 import { updateProfileImage } from '../controllers/user.controller.js';
 

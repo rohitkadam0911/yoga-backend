@@ -3,6 +3,8 @@ import { createHmac } from "node:crypto";
 import Payment from "../models/payment.model.js";
 import Booking from "../models/booking.model.js";
 import razorpay from "../config/razorpay.js";
+import Instructor from "../models/instructor.model.js";
+import Class from "../models/class.model.js";
 
 export const createPayment = async (req, res) => {
     try {
@@ -406,6 +408,221 @@ export const getAllPayments = async (req, res) => {
 
     } catch (error) {
         console.error("Get All Payments Error:", error);
+
+        return res.status(500).json({
+            success: false,
+            message: error.message
+        });
+    }
+};
+
+export const getInstructorPayments = async (req, res) => {
+    try {
+        const instructor = await Instructor.findOne({
+            userId: req.user.id,
+            status: true
+        });
+
+        if (!instructor) {
+            return res.status(404).json({
+                success: false,
+                message: "Instructor profile not found"
+            });
+        }
+
+        const payments = await Payment.find({
+            status: true
+        })
+            .populate({
+                path: "bookingId",
+                match: {
+                    instructorId: instructor._id
+                },
+                populate: [
+                    {
+                        path: "classId",
+                        select: "title category scheduleDate price"
+                    },
+                    {
+                        path: "sessionId",
+                        select: "date startTime endTime"
+                    },
+                    {
+                        path: "userId",
+                        select: "name email phone"
+                    }
+                ]
+            })
+            .sort({
+                createdAt: -1
+            });
+
+        const instructorPayments = payments.filter(
+            payment => payment.bookingId
+        );
+
+        return res.status(200).json({
+            success: true,
+            count: instructorPayments.length,
+            data: instructorPayments
+        });
+
+    } catch (error) {
+
+        console.error("Get Instructor Payments Error:", error);
+
+        return res.status(500).json({
+            success: false,
+            message: error.message
+        });
+    }
+};
+
+export const getInstructorEarnings = async (req, res) => {
+    try {
+
+        const instructor = await Instructor.findOne({
+            userId: req.user.id,
+            status: true
+        });
+
+        if (!instructor) {
+            return res.status(404).json({
+                success: false,
+                message: "Instructor profile not found"
+            });
+        }
+
+        const payments = await Payment.find({
+            status: true
+        }).populate({
+            path: "bookingId",
+            match: {
+                instructorId: instructor._id
+            },
+            select: "instructorId paymentStatus bookingStatus totalAmount classId",
+            populate: {
+                path: "classId",
+                select: "title"
+            }
+        });
+
+        const instructorPayments = payments.filter(
+            payment => payment.bookingId
+        );
+
+        const totalEarnings = instructorPayments
+            .filter(payment => payment.paymentStatus === "Paid")
+            .reduce(
+                (total, payment) => total + payment.amount,
+                0
+            );
+
+        const pendingAmount = instructorPayments
+            .filter(payment => payment.paymentStatus === "Pending")
+            .reduce(
+                (total, payment) => total + payment.amount,
+                0
+            );
+
+        const failedAmount = instructorPayments
+            .filter(payment => payment.paymentStatus === "Failed")
+            .reduce(
+                (total, payment) => total + payment.amount,
+                0
+            );
+
+        const refundedAmount = instructorPayments
+            .filter(payment => payment.paymentStatus === "Refunded")
+            .reduce(
+                (total, payment) => total + payment.amount,
+                0
+            );
+
+        return res.status(200).json({
+            success: true,
+            data: {
+                totalEarnings,
+                pendingAmount,
+                failedAmount,
+                refundedAmount,
+                totalPayments: instructorPayments.length
+            }
+        });
+
+    } catch (error) {
+
+        console.error("Get Instructor Earnings Error:", error);
+
+        return res.status(500).json({
+            success: false,
+            message: error.message
+        });
+    }
+};
+
+export const getInstructorMonthlyEarnings = async (req, res) => {
+    try {
+
+        const instructor = await Instructor.findOne({
+            userId: req.user.id,
+            status: true
+        });
+
+        if (!instructor) {
+            return res.status(404).json({
+                success: false,
+                message: "Instructor profile not found"
+            });
+        }
+
+        const payments = await Payment.find({
+            paymentStatus: "Paid",
+            status: true
+        }).populate({
+            path: "bookingId",
+            match: {
+                instructorId: instructor._id
+            },
+            select: "instructorId"
+        });
+
+        const instructorPayments = payments.filter(
+            payment => payment.bookingId
+        );
+
+        const monthlyEarnings = {};
+
+        instructorPayments.forEach(payment => {
+
+            if (!payment.paymentDate) {
+                return;
+            }
+
+            const date = new Date(payment.paymentDate);
+
+            const month = `${date.getFullYear()}-${String(
+                date.getMonth() + 1
+            ).padStart(2, "0")}`;
+
+            if (!monthlyEarnings[month]) {
+                monthlyEarnings[month] = 0;
+            }
+
+            monthlyEarnings[month] += payment.amount;
+        });
+
+        return res.status(200).json({
+            success: true,
+            data: monthlyEarnings
+        });
+
+    } catch (error) {
+
+        console.error(
+            "Get Instructor Monthly Earnings Error:",
+            error
+        );
 
         return res.status(500).json({
             success: false,
