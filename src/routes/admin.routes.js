@@ -18,9 +18,7 @@ import {
     changeAdminPassword
 } from "../controllers/admin.controller.js";
 
-import { adminAuth, auth } from "../middleware/auth.middleware.js";
-
-import { isAdmin } from "../middleware/role.middleware.js";
+import { adminAuth } from "../middleware/auth.middleware.js";
 
 import upload from "../middleware/upload.middleware.js";
 
@@ -30,7 +28,7 @@ const router = express.Router();
 
 router.post("/login", adminLogin);
 
-router.get("/dashboard", adminAuth, isAdmin, getDashboardStats);
+router.get("/dashboard", adminAuth, getDashboardStats);
 
 router.get("/users", adminAuth, getAllUsers);
 
@@ -50,13 +48,13 @@ router.get("/blogs", adminAuth, getAllBlogs);
 
 router.post("/logout", adminAuth, adminLogout);
 
-router.get("/profile", auth, isAdmin, getAdminProfile);
+router.get("/profile", adminAuth, getAdminProfile);
 
-router.put("/update-profile", auth, isAdmin, updateAdminProfile);
+router.put("/update-profile", adminAuth, updateAdminProfile);
 
-router.put("/profile-image", auth, isAdmin, upload.single("profileImage"), updateAdminProfileImage);
+router.put("/profile-image", adminAuth, upload.single("profileImage"), updateAdminProfileImage);
 
-router.put("/change-password", auth, isAdmin, changeAdminPassword);
+router.put("/change-password", adminAuth, changeAdminPassword);
 
 
 export default router;

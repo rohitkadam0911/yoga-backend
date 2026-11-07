@@ -10,9 +10,9 @@ const router = express.Router();
 router.post("/create-profile", auth, isInstructor, instructorValidator, createInstructorProfile );
 router.get("/", getAllInstructors);
 router.get("/me", auth, getMyInstructorProfile);
+router.get("/dashboard", auth, isInstructor, getInstructorDashboard);
 router.get("/:id", getInstructorById);
 router.put("/update-profile", auth, isInstructor, updateProfileInstructor );
 router.delete("/delete-profile", auth, isInstructor, deleteInstructorProfile );
-router.get("/dashboard", auth, isInstructor, getInstructorDashboard);
 
 export default router;
