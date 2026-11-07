@@ -30,7 +30,8 @@ app.use(
             if (
                 !origin ||
                 allowedOrigins.includes(origin) ||
-                /^http:\/\/(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+)(:\d+)?$/.test(origin)
+                /^http:\/\/(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+)(:\d+)?$/.test(origin) ||
+                /\.netlify\.app$/.test(origin)
             ) {
                 callback(null, true);
             } else {
