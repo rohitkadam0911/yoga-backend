@@ -30,15 +30,19 @@ app.use(
             if (
                 !origin ||
                 allowedOrigins.includes(origin) ||
-                /^http:\/\/(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+)(:\d+)?$/.test(origin) ||
-                /\.netlify\.app$/.test(origin)
+                /^https?:\/\/(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+)(:\d+)?$/.test(origin) ||
+                /\.netlify\.app$/.test(origin) ||
+                /\.vercel\.app$/.test(origin) ||
+                /\.onrender\.com$/.test(origin)
             ) {
                 callback(null, true);
             } else {
                 callback(new Error("Not allowed by CORS"));
             }
         },
-        credentials: true
+        credentials: true,
+        methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+        allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"]
     })
 );
 
